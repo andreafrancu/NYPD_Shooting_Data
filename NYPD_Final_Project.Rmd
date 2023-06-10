@@ -11,6 +11,7 @@ output:
 The first thing we need to do is read in the data. We are using data provided by the city of new york. I also import 4 libraries here: tidyverse, readr, dplyr, and lubridate.
 
 ```{r get_data}
+knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(readr)
 library(dplyr)
