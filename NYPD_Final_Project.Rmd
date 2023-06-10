@@ -1,0 +1,132 @@
+---
+title: "NYPD Shooting Incident Data Report Analysis"
+author: "Andrea Francu"
+date: "2023-05-20"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Read in the data
+The first thing we need to do is read in the data. We are using data provided by the city of new york. I also import 4 libraries here: tidyverse, readr, dplyr, and lubridate.
+
+```{r get_data}
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(lubridate)
+
+url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+
+```
+
+
+Read what the data is and see what we have:
+```{r read_data}
+# first we read in the data
+nypdata <- read_csv(url)
+
+#then we can look at the first few rows of the data to see what information we are provided with
+head(nypdata)
+
+```
+
+# Organize Data
+In the follow code I first change the format of the data column to be a date rather than a character. I also remove columns that I do not need. Some rows do not have a value for every column, such as perp age group. I will keep these in for now in case they are needed but need to be cognisant of the fact that not every incident has an entry for certain categories.
+
+``` {r sort_columns}
+
+nypdata <- nypdata %>%
+  select(-c(INCIDENT_KEY, LOC_OF_OCCUR_DESC, JURISDICTION_CODE, LOC_CLASSFCTN_DESC, LOCATION_DESC, X_COORD_CD, Y_COORD_CD, Latitude, Longitude, Lon_Lat)) %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) 
+
+```
+
+Now let's see a summary of the cleaned up data:
+
+``` {r summarize_data}
+
+head(nypdata)
+
+```
+
+# Sort by borough
+Then we can look at the data by frequency of crimes by borough. In order to do this, I made a data frame for the boroughs and the number of incidents for each one. I then found data online for population of each borrow and added this as well.
+
+```{r group_by_borough}
+
+boro <- table(nypdata['BORO'])
+data_by_boro <- as.data.frame(boro)
+
+# data for population of boroughs found here: https://www.citypopulation.de/en/usa/newyorkcity/
+population = c(1203789, 2300664, 1487536, 1951598, 378977)
+data_by_boro$population = population
+
+# we can also take a look at adjusting the number of shootings per thousand people in the population of each borough
+shootings_per_thou = data_by_boro$Freq * 1000 / data_by_boro$population
+data_by_boro$shootings_per_thou = shootings_per_thou
+
+#look at the data
+data_by_boro
+
+```
+
+We can also look at the frequency of races of victims:
+```{r group_by_race}
+
+victim_race <- table(nypdata['VIC_RACE'])
+data_by_vic_race <- as.data.frame(victim_race)
+
+```
+
+# Graphs!
+Now to visualize the data! We start with a bar chart of the frequency of shootings by borough:
+``` {r visualize_borough}
+
+barplot(data_by_boro$Freq, xlab = "Borough", ylab = "Count", main = "Frequency of Shootings by Borough", names.arg = data_by_boro$BORO, col = "ORANGE", cex.names = 0.8)
+
+```
+This bar chart shows that Brooklyn has the highest count of crimes, and then Bronx. The lost number of crimes are in Staten Island. It should be noted that these differences can definitely be affected by population and size of these boroughs, which is why I look at this correlation in my model at the end. However, based on my limited knowledge of New York, I think it makes sense that Bronx and Brooklyn have a high amount of shootings, while Manhattan has much less. Another way to look at the data would be to look at shootings per 1000 people in the population, which I do here:
+
+``` {r visualize_adjusted_count}
+
+barplot(data_by_boro$shootings_per_thou, xlab = "Borough", ylab = "Shootings per 1000 people", main = "Adjusted Frequency of Shootings by Borough", names.arg = data_by_boro$BORO, col = "MAGENTA", cex.names = 0.8)
+
+```
+This bar plot shows that our staten island data was definitely skewed by its small population. It is now much closer to the rate of shootings in Queens, and even Manhattan. It also shows that Bronx actually has more shootings per thousand people than Brooklyn does. The way we look at data and the variables we choose to adjust for greatly affect our visualizations, and can often lead to misinterpretation of data when onutside sources quickly look over our results. This is why it's very important to consider all facts and biases, and to note for them whenever possible.
+
+And we can also plot the number shootings relative to the race of the victim
+``` {r visualize_race}
+
+barplot(data_by_vic_race$Freq, xlab = "Victim Race", ylab = "Count", main = "Frequency of Shootings by Victim Race", names.arg = data_by_vic_race$VIC_RACE, col = "GREEN", cex.names = 0.27)
+
+```
+The graph above shows that black people are by far the most common victims of shootings in New York. While the fact they are the most targeted is not surprising, the scale by how many more crimes are committed towards them is extremely alarming.  
+
+# Model!
+And finally we can make a model:
+For this model I looked at the population in each borough and tried to see if there was a linear relationship between that and frequency of shootings. 
+``` {r model}
+
+model = lm(Freq ~ population, data = data_by_boro)
+pred = predict(model)
+
+data_by_boro %>%
+  ggplot() +
+  geom_point(aes(x = population, y = Freq), color = "green") +
+  geom_point(aes(x = population, y = pred), color = "purple") +
+  labs(title = "Population vs. Frequency of Crimes in NYC")
+
+```
+The model above shows that, while there is some consistency with higher population related to higher crime rate, there is not enough data to prove this. For the future, maybe looking at this data within suburbs of New York would give more data and show a better understanding of how related population and crime frequency are. 
+
+There is definitely bias in all data that we look at. For example, the population data I looked at came from census data, which often does not account for the homeless population. Homeless people are often targets of crime as well as involved in crimes, so this would definitely affect the data we are looking at. 
+
+There is also always personal bias when analyzing data. When I chose to look at frequency of shootings organized by race of victims, I definitely went into that assuming black people would have the highest rate of being victims of shootings. However, this bias is also based on real world stories and data, and just because I had a bias about it doesn't mean it wasn't true.
+
+Overall, there are so many different ways to analyze the same data set. Based on our backgrounds and knowledge, we often choose to look at variables that we are interested in ahead of time. Sometimes this data can be surprising or revealing, while other times it justifies our previous beliefs. 
+
+
+
+
+
